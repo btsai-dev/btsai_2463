@@ -1,119 +1,95 @@
-let c = null;
-let x0 = null;
-let y0 = null;
-let red = 'rgb(255, 0, 0)'
-let orange = 'rgb(255,165,0)'
-let yellow = 'rgb(255,255,0)'
-let green = 'rgb(0,255,0)'
-let cyan = 'rgb(0,255,255)'
-let blue = 'rgb(0,0,255)'  
-let magenta = 'rgb(255,0,255)'
-let brown = 'rgb(139,69,19)'
-let white = 'rgb(255,255,255)'
-let black = 'rgb(0,0,0)'
+let male_character;
+let female_character;
+let other_character;
 
-function setup() {
-  createCanvas(1000, 500);
-  background(200, 200, 200);
+let male_spritesheet;
+let female_spritesheet;
+let other_spritesheet;
+
+
+function preload() {
+  male_spritesheet = loadImage("SpelunkyGuy.png");
+  female_spritesheet = loadImage("SpelunkyGirl.png");
+  other_spritesheet = loadImage("SpelunkyOther.png");
 }
 
-function mouseClicked() {
-  if (mouseX > 10 && mouseX < 40)
-  {
-    if (mouseY > 10 && mouseY < 40)
-    {
-      c = red;
-    }
-    else if (mouseY > 50 && mouseY < 80)
-    {
-      c = orange;
-    }
-    else if (mouseY > 90 && mouseY < 120)
-    {
-      c = yellow;
-    }
-    else if (mouseY > 130 && mouseY < 160)
-    {
-      c = green;
-    }
-    else if (mouseY > 170 && mouseY < 200)
-    {
-      c = cyan;
-    }
-    else if (mouseY > 210 && mouseY < 240)
-    {
-      c = blue;
-    }
-    else if (mouseY > 250 && mouseY < 280)
-    {
-      c = magenta;
-    }
-    else if (mouseY > 290 && mouseY < 320)
-    {
-      c = brown;
-    }
-    else if (mouseY > 330 && mouseY < 360)
-    {
-      c = white;
-    }
-    else if (mouseY > 370 && mouseY < 400)
-    {
-      c = black;
-    }
+function setup() {
+  createCanvas(1200, 600);
+  imageMode(CENTER);
+
+  let random_1x = int(random(100, 1100));
+  let random_1y = int(random(100, 500));
+  let random_2x = int(random(100, 1100));
+  let random_2y = int(random(100, 500));
+  let random_3x = int(random(100, 1100));
+  let random_3y = int(random(100, 500));
+
+  male_character = new Character(male_spritesheet, random_1x, random_1y)
+  female_character = new Character(female_spritesheet, random_2x, random_2y)
+  other_character = new Character(other_spritesheet, random_3x, random_3y)
+}
+
+function keyPressed() {
+  if (keyCode == RIGHT_ARROW) {
+    male_character.go(1);
+    female_character.go(1);
+    other_character.go(1);
+  }
+  else if (keyCode == LEFT_ARROW) {
+    male_character.go(-1);
+    female_character.go(-1);
+    other_character.go(-1);
   }
 }
 
-function mousePressed() {
-  
+function keyReleased() {
+  male_character.stop();
+  female_character.stop();
+  other_character.stop();
 }
 
 function draw() {
-  if (mouseIsPressed)
-  {
-    if (c)
-    {
-      if (!x0 || !y0)
-      {
-        x0 = mouseX;
-        y0 = mouseY;
-      }
-      else
-      {
-        strokeWeight(20);
-        stroke(c);
-        line(x0, y0, mouseX, mouseY);
-        x0 = mouseX;
-        y0 = mouseY;
-      }
+  background(255, 255, 255);
+  male_character.draw();
+  female_character.draw();
+  other_character.draw();
+}
+
+class Character {
+  constructor(spriteSheet, x, y) {
+    this.spriteSheet = spriteSheet;
+    this.sx = 0;
+    this.x = x;
+    this.y = y
+    this.move = 0;
+    this.face_dir = 1;
+  }
+
+  draw() {
+    push();
+    translate(this.x, this.y);
+    scale (this.face_dir, 1);
+    
+    if (this.move == 0) {
+      image(this.spriteSheet, 0, 0, 200, 200, 0, 0, 80, 80);
     }
+    else {
+      image(this.spriteSheet, 0, 0, 200, 200, 80 * (this.sx + 1), 0, 80, 80);
+    }
+    if (frameCount % 8 == 0) {
+      this.sx = (this.sx + 1) % 8;
+    }
+    this.x += 2 * this.move;
+    pop();
   }
-  else
-  {
-    x0 = null;
-    y0 = null;
+
+  go(direction) {
+    this.move = direction;
+    this.face_dir = direction;
+    this.sx = 3;
   }
-  
-  noStroke();
-  fill(200, 200, 200);
-  rect(5, 5, 40, 400);
-  fill(red);
-  square(10, 10, 30);
-  fill(orange);
-  square(10, 50, 30);
-  fill(yellow);
-  square(10, 90, 30);
-  fill(green);
-  square(10, 130, 30);
-  fill(cyan);
-  square(10, 170, 30);
-  fill(blue);
-  square(10, 210, 30);
-  fill(magenta);
-  square(10, 250, 30);
-  fill(brown);
-  square(10, 290, 30);
-  fill(white);
-  square(10, 330, 30);
-  fill(black);
-  square(10, 370, 30);
+
+  stop() {
+    this.move = 0;
+  }
 }
