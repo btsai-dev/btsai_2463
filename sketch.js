@@ -1,68 +1,90 @@
-let male_character;
-let female_character;
-let other_character;
-
-let male_spritesheet;
-let female_spritesheet;
-let other_spritesheet;
-
+let bugs = [];
+let count = 4;
+let hitbox = 100;
+let score = 0;
+let speed = 5;
+let time = 30;
+let game_ended = false;
 
 function preload() {
-  male_spritesheet = loadImage("SpelunkyGuy.png");
-  female_spritesheet = loadImage("SpelunkyGirl.png");
-  other_spritesheet = loadImage("SpelunkyOther.png");
+  bug_spritesheet = loadImage("Bug.png");
+}
+
+function mouseReleased() {
+  for (i = 0; i < count; i++) {
+    bugs[i].kill();
+  }
+}
+
+function mousePressed() {
+  for (i = 0; i < count; i++) {
+    bugs[i].squish_press();
+  }
+}
+
+function mouseDragged() {
+  for (i = 0; i < count; i++) {
+    bugs[i].squish_drag();
+  }
 }
 
 function setup() {
   createCanvas(1200, 600);
   imageMode(CENTER);
 
-  let random_1x = int(random(100, 1100));
-  let random_1y = int(random(100, 500));
-  let random_2x = int(random(100, 1100));
-  let random_2y = int(random(100, 500));
-  let random_3x = int(random(100, 1100));
-  let random_3y = int(random(100, 500));
-
-  male_character = new Character(male_spritesheet, random_1x, random_1y)
-  female_character = new Character(female_spritesheet, random_2x, random_2y)
-  other_character = new Character(other_spritesheet, random_3x, random_3y)
-}
-
-function keyPressed() {
-  if (keyCode == RIGHT_ARROW) {
-    male_character.go(1);
-    female_character.go(1);
-    other_character.go(1);
+  for (i=0; i<count; i++) {
+    bugs[i] = new Bug(
+      bug_spritesheet, 
+      random(100, 1100), 
+      random(100, 500), 
+      random([-1, 1])
+    )
   }
-  else if (keyCode == LEFT_ARROW) {
-    male_character.go(-1);
-    female_character.go(-1);
-    other_character.go(-1);
-  }
-}
-
-function keyReleased() {
-  male_character.stop();
-  female_character.stop();
-  other_character.stop();
 }
 
 function draw() {
-  background(255, 255, 255);
-  male_character.draw();
-  female_character.draw();
-  other_character.draw();
+  background(200, 200, 200);
+  if (!game_ended) {
+    fill('black');
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    text("Time left: " + time, width/2, 50);
+    text("Score: " + score, width/2, height-50);
+    for (i=0; i<count; i++) {
+      bugs[i].draw();
+    }
+    if (frameCount % 60 == 0 && time > 0)
+    {
+      time --;
+    }
+    if (time == 0){
+      game_ended = true;
+    }
+  }
+    
+  else {
+    fill('black');
+    rect(width/2-300, height/2-200, 600, 400);
+    fill('white');
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    text("Game Over! Total score: " + score, width/2, height/2)
+  }
+
 }
 
-class Character {
-  constructor(spriteSheet, x, y) {
+class Bug {
+  constructor(spriteSheet, x, y, move) {
     this.spriteSheet = spriteSheet;
     this.sx = 0;
-    this.x = x;
-    this.y = y
-    this.move = 0;
-    this.face_dir = 1;
+    this.x = int(x);
+    this.y = int(y);
+    this.move = move;
+    this.face_dir = move;
+    this.dead = false;
+    this.squished = false;
+    this.viewable = true;
+    this.timeOfDeath = 0;
   }
 
   draw() {
@@ -70,16 +92,36 @@ class Character {
     translate(this.x, this.y);
     scale (this.face_dir, 1);
     
-    if (this.move == 0) {
-      image(this.spriteSheet, 0, 0, 200, 200, 0, 0, 80, 80);
+    if (this.dead) {
+      if (this.viewable) {
+        image(this.spriteSheet, 0, 0, hitbox, hitbox, 80, 80, 90, 80);
+      }
+      if (frameCount - this.timeOfDeath > 60){
+        this.viewable = false;
+      }
+    }
+    else if (this.squished) {
+      image(this.spriteSheet, 0, 0, hitbox, hitbox, 0, 80, 80, 80);
     }
     else {
-      image(this.spriteSheet, 0, 0, 200, 200, 80 * (this.sx + 1), 0, 80, 80);
+      image(this.spriteSheet, 0, 0, hitbox, hitbox, 80 * (this.sx + 1), 0, 80, 80);
     }
     if (frameCount % 8 == 0) {
-      this.sx = (this.sx + 1) % 8;
+      this.sx = (this.sx + 1) % 6;
     }
-    this.x += 2 * this.move;
+    this.x += speed * this.move;
+
+    if (!this.squished && !this.dead)
+    {
+      if (this.x < hitbox/2-10) {
+        this.move = 1;
+        this.face_dir = 1;
+      }
+      else if (this.x > width-hitbox/2+10) {
+        this.move = -1;
+        this.face_dir = -1;
+      }
+    }
     pop();
   }
 
@@ -91,5 +133,50 @@ class Character {
 
   stop() {
     this.move = 0;
+  }
+
+  squish_press() {
+    if (!this.dead && !this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.squished = true;
+      }
+      else{
+        this.go(this.face_dir);
+        this.squished = false;
+      }
+    }
+  }
+
+  squish_drag() {
+    if (!this.dead && this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.squished = true;
+      }
+      else{
+        this.go(this.face_dir);
+        this.squished = false;
+      }
+    }
+  }
+
+  kill() {
+    if (!this.dead && this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.dead = true;
+        speed += 2;
+        score += 1;
+        this.timeOfDeath = frameCount;
+        bugs.push(new Bug(
+          bug_spritesheet, 
+          random(100, 1100), 
+          random(100, 500), 
+          random([-1, 1])
+        ))
+        count += 1;
+      }
+    }
   }
 }
