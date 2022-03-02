@@ -1,67 +1,118 @@
-// Jesse Allison 2022
+// Brian Tsai
+let bitcrusher_knob;
+let reverb_knob;
+let octave_knob;
 
-const sounds = new Tone.Players({
-  'Air Raid': 'media/45933__torn-rugged-audio-35__air-raid-r.wav',
-  'Smoke Alarm': 'media/170944__jan18101997__smoke-alarm-piep-piep.wav',
-  'Censor Beep': 'media/460015__matrixxx__censor-beep.wav',
-  'Alarm Clock': 'media/462455__shyguy014__alarm-clock-1.wav',
-  'Touch Beep': 'media/550430__diicorp95__digital-button-touch.wav'
-})
+let bitcrusher_label;
+let reverb_label;
+let octave_label;
 
-const distor = new Tone.Distortion(0);
+let notes = {
+  'a': 'C',
+  's': 'D',
+  'd': 'E',
+  'f': 'F',
+  'g': 'G',
+  'h': 'A',
+  'j': 'B',
+}
 
-let soundNames = [
-  "Air Raid",
-  "Smoke Alarm",
-  "Censor Beep",
-  "Alarm Clock",
-  "Touch Beep"
-]
+let octaves = ['0', '1','2','3','4','5','6','7','8']
 
-let buttons = [];
-let disto_slider;
+let octave_level = '4';
 
-let button_raid;
-let button_smoke;
-let button_censor;
-let button_clock;
-let button_touch;
+const membrane = new Tone.MembraneSynth({
+  "frequency" : 45,
+  "envelope"  : {
+    "attack"  : 0.001,
+    "decay"   : 0.4,
+    "release" : 0.2
+  },
+  "harmonicity" :8.5,
+  "modulationIndex" : 40,
+  "resonance" : 0.2,
+  "octaves" : 1.5
+});
 
-let slider_label;
+let reverb, bitcrusher;
+
+function preload(){
+  reverb = new Tone.JCReverb(0.4);
+  bitcrusher = new Tone.BitCrusher(12);
+}
 
 function setup() {
-  createCanvas(1000, 400);
-  sounds.connect(distor);
-  distor.toDestination();
+  createCanvas(0, 0);
+  membrane.release = 0.2;
+  membrane.resonance = 0.2;
 
-  disto_slider = createSlider(0., 1., 0, 0.01);
-  disto_slider.position(500 - disto_slider.width/2, 300);
-  disto_slider.mouseReleased( () => applyDistortion());
+  membrane.connect(reverb);
+  reverb.connect(bitcrusher);
+  bitcrusher.toDestination();
 
-  soundNames.forEach((word, index) => {
-    buttons[index] = createButton(word);
-    buttons[index].position(index * 200 + 100 - buttons[index].width/2, 100);
-    buttons[index].mousePressed( ()=>playSound(word));
+  octave_label = document.getElementById("octave_label");
+  octave_label.innerHTML = octave_level;
+
+  reverb_label = document.getElementById("reverb_label");
+  reverb_label.innerHTML = parseFloat(0.2).toPrecision(3);
+
+  bitcrusher_label = document.getElementById("bitcrusher_label");
+  bitcrusher_label.innerHTML = parseFloat(12.0).toPrecision(3);
+
+  reverb_knob = new Nexus.Dial('#reverb', {
+    'size': [40, 40],
+    'interaction': 'radial',
+    'mode': 'relative',
+    'min': 0,
+    'max': 1,
+    'step': 0.01,
+    'value': 0.2
+  });
+
+  reverb_knob.on('change', (v)=>{
+    reverb.roomSize.value = v;
+    reverb_label.innerHTML = parseFloat(v).toPrecision(3);
   })
 
-  textSize(20);
-  textAlign(CENTER, CENTER);
+  octave_knob = new Nexus.Dial('#octave', {
+    'size': [40, 40],
+    'interaction': 'radial',
+    'mode': 'relative',
+    'min': 0,
+    'max': 8,
+    'step': 1,
+    'value': 4
+  });
+  
+  octave_knob.on('change', (v)=>{
+    octave_level = octaves[v];
+    octave_label.innerHTML = octave_level;
+  })
+
+  bitcrusher_knob = new Nexus.Dial('#bitcrusher', {
+    'size': [40, 40],
+    'interaction': 'radial',
+    'mode': 'relative',
+    'min': 1,
+    'max': 16,
+    'step': 0.01,
+    'value': 12
+  });
+
+  bitcrusher_knob.on('change', (v)=>{
+    bitcrusher.bits.value = v;
+    bitcrusher_label.innerHTML = parseFloat(v).toPrecision(3)
+  })
 }
 
 function draw() {
-  push();
   background(220);
-  slider_label = text("Control Distortion [0, 1]", 500, 250);
-  pop();
 }
 
-function applyDistortion() {
-  distor.distortion = disto_slider.value();
-  console.log(disto_slider.value());
-}
-
-function playSound(whichSound) {
-
-  console.log(distor.distortion);
-  sounds.player(whichSound).start(0, 0, 2);
+function keyPressed() {
+  let toPlay = notes[key];
+  if (toPlay){
+    let note = toPlay.concat(octave_level);
+    membrane.triggerAttackRelease(note, "8n");
+  }
 }
