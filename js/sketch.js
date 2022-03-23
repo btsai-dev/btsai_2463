@@ -6,22 +6,104 @@ let speed = 5;
 let time = 30;
 let game_ended = false;
 
+let melodyPlaybackRate = 1;
+
+const sounds = new Tone.Players({
+  'smack': 'media/smack.wav',
+  'squish': 'media/squish.wav',
+  'skitter': 'media/skitter.wav'
+})
+
+const mainChords = [
+  {time: 0, note: ["D4", "E4", "F4"]},
+  {time: "0:0.5", note: ["D4", "E4", "F4"]},
+  {time: "0:1", note: ["G4", "B4", "D4"]}, 
+  {time: "0:2", note: ["F4", "A4", "C4"]}, 
+  {time: "0:3", note: ["E4", "G3", "B4"]}, 
+];
+
+const endChords = [
+  {time: 0, note: ["D2", "E2", "F2"]},
+  {time: "0:0.5", note: ["D2", "E2", "F2"]},
+  {time: "0:1", note: ["G2", "B2", "D2"]}, 
+  {time: "0:2", note: ["F2", "A2", "C2"]}, 
+  {time: "0:3", note: ["E2", "G1", "B2"]}, 
+];
+
+let synthChord;
+let endChord;
+let chordInstrument;
+let endInstrument;
+let mainMelodyPart;
+let endMelodyPart;
+
+// Setup preloading and the music
 function preload() {
-  bug_spritesheet = loadImage("Bug.png");
+  bug_spritesheet = loadImage("media/Bug.png");
+
+  // Setup music for general playing
+  chordInstrument = new Tone.PolySynth(Tone.Synth)
+  synthChord = {
+    volume: -3,
+    oscillator : {
+      type : "triangle"
+    }
+  };
+  chordInstrument.set(synthChord);
+  chordInstrument.connect(Tone.Destination);
+
+  mainMelodyPart = new Tone.Part(
+    (time, chord) => {
+      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
+    }, mainChords);
+
+  mainMelodyPart.loop = true;
+  mainMelodyPart.playbackRate = melodyPlaybackRate;
+  mainMelodyPart.probability = 1;
+
+  mainMelodyPart.start();
+
+  // Setup music for end screen
+  endInstrument = new Tone.PolySynth(Tone.Synth);
+  endChord = {
+    volume: 20,
+    oscillator : {
+      type : "sawtooth"
+    }
+  };
+  endInstrument.set(endChord);
+  endInstrument.connect(Tone.Destination);
+
+  endMelodyPart = new Tone.Part(
+    (time, chord) => {
+      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
+    }, endChords);
+
+  endMelodyPart.loop = true;
+  endMelodyPart.playbackRate = 2;
+  endMelodyPart.probability = 1;
+
+  // Start up everything
+  Tone.start();
+  Tone.Transport.start();
 }
 
+// Check for kills on release
 function mouseReleased() {
   for (i = 0; i < count; i++) {
     bugs[i].kill();
   }
 }
 
+// Check for squishes on press
 function mousePressed() {
   for (i = 0; i < count; i++) {
     bugs[i].squish_press();
   }
+  sounds.player("smack").start();
 }
 
+// Check for any dragging
 function mouseDragged() {
   for (i = 0; i < count; i++) {
     bugs[i].squish_drag();
@@ -31,6 +113,8 @@ function mouseDragged() {
 function setup() {
   createCanvas(1200, 600);
   imageMode(CENTER);
+
+  sounds.connect(Tone.Destination);
 
   for (i=0; i<count; i++) {
     bugs[i] = new Bug(
@@ -59,6 +143,11 @@ function draw() {
     }
     if (time == 0){
       game_ended = true;
+
+      // This will be executed only once
+      mainMelodyPart.stop();
+      endMelodyPart.start();
+      sounds.disconnect();
     }
   }
     
@@ -175,7 +264,11 @@ class Bug {
           random(100, 500), 
           random([-1, 1])
         ))
+        mainMelodyPart.playbackRate += 0.2;
         count += 1;
+        
+        sounds.player("squish").start(Tone.now(), 0.2);
+        sounds.player("skitter").start(Tone.now(), 0.5);
       }
     }
   }
