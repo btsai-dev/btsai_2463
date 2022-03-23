@@ -1,117 +1,275 @@
-// Brian Tsai
+let bugs = [];
+let count = 4;
+let hitbox = 100;
+let score = 0;
+let speed = 5;
+let time = 30;
+let game_ended = false;
 
-let pressed, unpressed, alert;
-let mono, oscillation, envelope, filter, lfo, noise;
-let drawThis;
-let backMusic;
+let melodyPlaybackRate = 1;
 
-let loop, backosc, backgain, backamp;
-let s = "Press to Sound Alarm!";
+const sounds = new Tone.Players({
+  'smack': 'media/smack.wav',
+  'squish': 'media/squish.wav',
+  'skitter': 'media/skitter.wav'
+})
 
-// Preload images
+const mainChords = [
+  {time: 0, note: ["D4", "E4", "F4"]},
+  {time: "0:0.5", note: ["D4", "E4", "F4"]},
+  {time: "0:1", note: ["G4", "B4", "D4"]}, 
+  {time: "0:2", note: ["F4", "A4", "C4"]}, 
+  {time: "0:3", note: ["E4", "G3", "B4"]}, 
+];
+
+const endChords = [
+  {time: 0, note: ["D2", "E2", "F2"]},
+  {time: "0:0.5", note: ["D2", "E2", "F2"]},
+  {time: "0:1", note: ["G2", "B2", "D2"]}, 
+  {time: "0:2", note: ["F2", "A2", "C2"]}, 
+  {time: "0:3", note: ["E2", "G1", "B2"]}, 
+];
+
+let synthChord;
+let endChord;
+let chordInstrument;
+let endInstrument;
+let mainMelodyPart;
+let endMelodyPart;
+
+// Setup preloading and the music
 function preload() {
-  pressed = loadImage("media/pressed.png");
-  unpressed = loadImage("media/unpressed.png");
-  alert = loadImage("media/alert.jpg");
-}
+  bug_spritesheet = loadImage("media/Bug.png");
 
-// Setup function
-function setup() {
-  createCanvas(800, 400);
-
-  // Setup background noise
-  backosc = new Tone.AMOscillator(1000, 'sine', 'sine').start()
-  backgain = new Tone.Gain(-5).toDestination();
-  backamp = new Tone.AmplitudeEnvelope({
-    attack: 0.2,
-    decay: 0.2,
-    sustain: 0.8,
-    release: 0.8
-  }).connect(backgain);
-  backosc.connect(backamp);
-
-  // Setup alert synth
-  mono = new Tone.MonoSynth({
-    envelope: {
-      attack: 0.1
+  // Setup music for general playing
+  chordInstrument = new Tone.PolySynth(Tone.Synth)
+  synthChord = {
+    volume: -3,
+    oscillator : {
+      type : "triangle"
     }
-  }).toDestination();
+  };
+  chordInstrument.set(synthChord);
+  chordInstrument.connect(Tone.Destination);
 
-  oscillation = new Tone.FMOscillator({
-    type: "square",
-    spread: "triangle",
-    harmonicity: 0.2,
-    modulationIndex: 3
-  }).start();
+  mainMelodyPart = new Tone.Part(
+    (time, chord) => {
+      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
+    }, mainChords);
 
-  envelope = new Tone.Envelope({
-    attack: 0.2,
-    decay: 0.01,
-    sustain: 1,
-    release: 1
-  });
+  mainMelodyPart.loop = true;
+  mainMelodyPart.playbackRate = melodyPlaybackRate;
+  mainMelodyPart.probability = 1;
 
-  filter = new Tone.Filter(1500, "highpass");
+  mainMelodyPart.start();
 
-  lfo = new Tone.LFO({
-    min: 100,
-    max: 170,
-    frequency: '2n'
-  });
+  // Setup music for end screen
+  endInstrument = new Tone.PolySynth(Tone.Synth);
+  endChord = {
+    volume: 20,
+    oscillator : {
+      type : "sawtooth"
+    }
+  };
+  endInstrument.set(endChord);
+  endInstrument.connect(Tone.Destination);
 
-  lfo.connect(filter.frequency);
+  endMelodyPart = new Tone.Part(
+    (time, chord) => {
+      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
+    }, endChords);
 
-  noise = new Tone.Noise("brown").connect(filter).start();
+  endMelodyPart.loop = true;
+  endMelodyPart.playbackRate = 2;
+  endMelodyPart.probability = 1;
 
-  gain = new Tone.Gain(-5).toDestination();;
-  envelope.connect(gain.gain);
-  filter.connect(gain);
-  oscillation.connect(gain);
-
-  // Setup background loop
-  loop = new Tone.Loop((time)=>{
-    backosc.frequency.value = 1000;
-    backmusic();
-  }, "1n").start(0);
+  // Start up everything
+  Tone.start();
   Tone.Transport.start();
-  
-  // Draw unpressed image
-  image(unpressed, 0, 0)
 }
 
-// Paste text
+// Check for kills on release
+function mouseReleased() {
+  for (i = 0; i < count; i++) {
+    bugs[i].kill();
+  }
+}
+
+// Check for squishes on press
+function mousePressed() {
+  for (i = 0; i < count; i++) {
+    bugs[i].squish_press();
+  }
+  sounds.player("smack").start();
+}
+
+// Check for any dragging
+function mouseDragged() {
+  for (i = 0; i < count; i++) {
+    bugs[i].squish_drag();
+  }
+}
+
+function setup() {
+  createCanvas(1200, 600);
+  imageMode(CENTER);
+
+  sounds.connect(Tone.Destination);
+
+  for (i=0; i<count; i++) {
+    bugs[i] = new Bug(
+      bug_spritesheet, 
+      random(100, 1100), 
+      random(100, 500), 
+      random([-1, 1])
+    )
+  }
+}
+
 function draw() {
-  textSize(30);
-  textAlign(CENTER, CENTER);
-  text(s, 50, 45, 200, 200);
+  background(200, 200, 200);
+  if (!game_ended) {
+    fill('black');
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    text("Time left: " + time, width/2, 50);
+    text("Score: " + score, width/2, height-50);
+    for (i=0; i<count; i++) {
+      bugs[i].draw();
+    }
+    if (frameCount % 60 == 0 && time > 0)
+    {
+      time --;
+    }
+    if (time == 0){
+      game_ended = true;
+
+      // This will be executed only once
+      mainMelodyPart.stop();
+      endMelodyPart.start();
+      sounds.disconnect();
+    }
+  }
+    
+  else {
+    fill('black');
+    rect(width/2-300, height/2-200, 600, 400);
+    fill('white');
+    textAlign(CENTER, CENTER);
+    textSize(32);
+    text("Game Over! Total score: " + score, width/2, height/2)
+  }
+
 }
 
-// Function to trigger background music, one loop
-function backmusic(){
-  backamp.triggerAttackRelease('2n');
+class Bug {
+  constructor(spriteSheet, x, y, move) {
+    this.spriteSheet = spriteSheet;
+    this.sx = 0;
+    this.x = int(x);
+    this.y = int(y);
+    this.move = move;
+    this.face_dir = move;
+    this.dead = false;
+    this.squished = false;
+    this.viewable = true;
+    this.timeOfDeath = 0;
+  }
 
-  backosc.frequency.linearRampTo(600, "+1");
-  backamp.triggerAttackRelease('2n', "+1");
+  draw() {
+    push();
+    translate(this.x, this.y);
+    scale (this.face_dir, 1);
+    
+    if (this.dead) {
+      if (this.viewable) {
+        image(this.spriteSheet, 0, 0, hitbox, hitbox, 80, 80, 90, 80);
+      }
+      if (frameCount - this.timeOfDeath > 60){
+        this.viewable = false;
+      }
+    }
+    else if (this.squished) {
+      image(this.spriteSheet, 0, 0, hitbox, hitbox, 0, 80, 80, 80);
+    }
+    else {
+      image(this.spriteSheet, 0, 0, hitbox, hitbox, 80 * (this.sx + 1), 0, 80, 80);
+    }
+    if (frameCount % 8 == 0) {
+      this.sx = (this.sx + 1) % 6;
+    }
+    this.x += speed * this.move;
+
+    if (!this.squished && !this.dead)
+    {
+      if (this.x < hitbox/2-10) {
+        this.move = 1;
+        this.face_dir = 1;
+      }
+      else if (this.x > width-hitbox/2+10) {
+        this.move = -1;
+        this.face_dir = -1;
+      }
+    }
+    pop();
+  }
+
+  go(direction) {
+    this.move = direction;
+    this.face_dir = direction;
+    this.sx = 3;
+  }
+
+  stop() {
+    this.move = 0;
+  }
+
+  squish_press() {
+    if (!this.dead && !this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.squished = true;
+      }
+      else{
+        this.go(this.face_dir);
+        this.squished = false;
+      }
+    }
+  }
+
+  squish_drag() {
+    if (!this.dead && this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.squished = true;
+      }
+      else{
+        this.go(this.face_dir);
+        this.squished = false;
+      }
+    }
+  }
+
+  kill() {
+    if (!this.dead && this.squished) {
+      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+        this.stop();
+        this.dead = true;
+        speed += 2;
+        score += 1;
+        this.timeOfDeath = frameCount;
+        bugs.push(new Bug(
+          bug_spritesheet, 
+          random(100, 1100), 
+          random(100, 500), 
+          random([-1, 1])
+        ))
+        mainMelodyPart.playbackRate += 0.2;
+        count += 1;
+        
+        sounds.player("squish").start(Tone.now(), 0.2);
+        sounds.player("skitter").start(Tone.now(), 0.5);
+      }
+    }
+  }
 }
-
-// Play alarm on button press
-function mousePressed(){
-  image(pressed, 0, 0);
-  image(alert, 320, 0);
-  alarm();
-}
-
-// Hide everything on release
-function mouseReleased() {  
-  background("white");
-  image(unpressed, 0, 0)
-}
-
-// Alarm audio trigger, three times
-function alarm(){
-  mono.triggerAttackRelease("C4", "8n");
-  envelope.triggerAttackRelease('4n');
-  envelope.triggerAttackRelease('4n', '+1');
-  envelope.triggerAttackRelease('4n', '+2');
-}
-
