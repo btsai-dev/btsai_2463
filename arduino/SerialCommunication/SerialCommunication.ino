@@ -1,7 +1,7 @@
 /*
  * Programmer - Brian Tsai
  * Assignment - Controller
- * Demo URL - 
+ * Demo URL - https://youtu.be/U885wDuunWk
  */
 
 #include "PDMSerial.h"
@@ -36,14 +36,6 @@ void loop() {
   scaledXmap = map(round10(map(xData, 0, 1023, 0, 100)), 0, 100, -100, 100);
   int yData = analogRead(Y_pin);
   scaledYmap = map(round10(map(yData, 0, 1023, 0, 100)), 0, 100, -100, 100);
-  /*
-  Serial.print("X: ");
-  Serial.print(scaledXmap);
-  Serial.print(" Y: ");
-  Serial.print(scaledYmap);
-  Serial.print("  Click: ");
-  Serial.println(clickdata);
-  */
 
   pdm.transmitSensor("click", clickdata);
   pdm.transmitSensor("xData", scaledXmap);
