@@ -1,49 +1,53 @@
 /*
  * Programmer - Brian Tsai
- * Assignment - Serial Communication
- * Demo URL - https://youtu.be/dY3Q2NWqMD8
+ * Assignment - Controller
+ * Demo URL - https://youtu.be/U885wDuunWk
  */
 
 #include "PDMSerial.h"
 
 PDMSerial pdm;
 
-int sensorPin = A0;
-int sensorData = 0;
-int scaledSensor;
-int ledPin = 2;
+const int Click_pin = 2;
+const int X_pin = 0;
+const int Y_pin = 1;
 
-int led_status = HIGH;
+const int ledPin = 4;
+
+int scaledXmap;
+int scaledYmap;
+
+int round10(int in) {
+ static signed char round10delta[10] = {0, -1, -2, -3, -4, 5, 4, 3, 2, 1};  // Round to nearest 10th value difference
+ return in + round10delta[in%10];
+}
 
 void setup() {
-  pinMode(sensorPin, INPUT);
+  pinMode(Click_pin, INPUT);
   pinMode(ledPin, OUTPUT);
-  digitalWrite(ledPin, led_status);
+  digitalWrite(Click_pin, HIGH);
+  digitalWrite(ledPin, LOW);
   Serial.begin(9600);
 }
 
 void loop() {
+  int clickdata = digitalRead(Click_pin);
+  int xData = analogRead(X_pin);
+  scaledXmap = map(round10(map(xData, 0, 1023, 0, 100)), 0, 100, -100, 100);
+  int yData = analogRead(Y_pin);
+  scaledYmap = map(round10(map(yData, 0, 1023, 0, 100)), 0, 100, -100, 100);
 
-  
-  sensorData = analogRead(sensorPin);
-  scaledSensor = map(sensorData, 0, 1023, 0, 255);
-
-  pdm.transmitSensor("a0", sensorData);
+  pdm.transmitSensor("click", clickdata);
+  pdm.transmitSensor("xData", scaledXmap);
+  pdm.transmitSensor("yData", scaledYmap);
   pdm.transmitSensor("end");
-  //Serial.println(sensorData);
 
-  boolean mouseData = pdm.checkSerial();
-  if(mouseData) {
-    if (pdm.getName().equals(String("mouseClick"))) {
-      if (led_status == HIGH) {
-        led_status = LOW;
-      }
-      else {
-        led_status = HIGH;
-      }
-      
-      digitalWrite(ledPin, led_status);
-      Serial.println(led_status);
+  boolean serialData = pdm.checkSerial();
+  if (serialData) {
+    if (pdm.getName().equals(String("bug_kill"))) {
+      digitalWrite(ledPin, HIGH);
+      delay(10);
+      digitalWrite(ledPin, LOW);
     }
   }
 }
