@@ -6,6 +6,13 @@ let speed = 5;
 let time = 30;
 let game_ended = false;
 
+let serialPDM;
+let portName = "COM5";
+
+let _cursor;
+let canvas_WMAX = 1200
+let canvas_HMAX = 600
+
 let melodyPlaybackRate = 1;
 
 const sounds = new Tone.Players({
@@ -36,6 +43,9 @@ let chordInstrument;
 let endInstrument;
 let mainMelodyPart;
 let endMelodyPart;
+
+let _mouseX = 300;
+let _mouseY = 150;
 
 // Setup preloading and the music
 function preload() {
@@ -89,14 +99,14 @@ function preload() {
 }
 
 // Check for kills on release
-function mouseReleased() {
+function _mouseReleased() {
   for (i = 0; i < count; i++) {
     bugs[i].kill();
   }
 }
 
 // Check for squishes on press
-function mousePressed() {
+function _mousePressed() {
   for (i = 0; i < count; i++) {
     bugs[i].squish_press();
   }
@@ -104,17 +114,26 @@ function mousePressed() {
 }
 
 // Check for any dragging
-function mouseDragged() {
+function _mouseDragged() {
   for (i = 0; i < count; i++) {
     bugs[i].squish_drag();
   }
 }
 
 function setup() {
-  createCanvas(1200, 600);
+  serialPDM = new PDMSerial(portName);
+  sensor = serialPDM.sensorData;
+
+  createCanvas(canvas_WMAX, canvas_HMAX);
   imageMode(CENTER);
 
   sounds.connect(Tone.Destination);
+
+  _cursor = new MouseCursor(
+    null,
+    300,
+    150
+  )
 
   for (i=0; i<count; i++) {
     bugs[i] = new Bug(
@@ -129,6 +148,13 @@ function setup() {
 function draw() {
   background(200, 200, 200);
   if (!game_ended) {
+    // Process arduino info only if game is playing
+    click_data = sensor.click;
+    x_data = sensor.xData;
+    y_data = sensor.yData;
+    _cursor.xMove = sensor.xData;
+    _cursor.yMove = sensor.yData;
+    _cursor.status = sensor.click;
     fill('black');
     textAlign(CENTER, CENTER);
     textSize(32);
@@ -137,6 +163,7 @@ function draw() {
     for (i=0; i<count; i++) {
       bugs[i].draw();
     }
+    _cursor.draw();
     if (frameCount % 60 == 0 && time > 0)
     {
       time --;
@@ -160,6 +187,64 @@ function draw() {
     text("Game Over! Total score: " + score, width/2, height/2)
   }
 
+}
+
+class MouseCursor {
+  constructor(spriteSheet, x, y) {
+    this.spriteSheet = spriteSheet;
+    this.x = int(x);
+    this.y = int(y);
+    this.xMove = 0;
+    this.yMove = 0;
+    this.speed = 5;
+    this.status = 1;  // If status = 1, then not pressed. 0 if pressed.
+    this.prior_status = 1;  // Prior status, check if release
+  }
+
+  draw() {
+    push();
+    //translate(this.x, this.y);
+    circle(this.x, this.y, 10);
+    // If mouse is unpressed and you're justing moving
+    if (this.status == 1)
+    {
+      // Check if prior status was pressed
+      if (this.prior_status == 0)
+      {
+        // Execute a release
+        _mouseReleased();
+      }
+      else{
+        let futureX = this.x + int(this.xMove / 20 * 1);
+        let futureY = this.y + int(this.yMove / 20 * 1)
+        // make sure not out of bounds
+        if (futureX >= 0 && futureX <= width)
+          this.x = futureX;
+        if (futureY >= 0 && futureY <= height)
+          this.y = futureY
+      }
+    }
+    // Check if mouse is pressed
+    else if (this.status == 0) {
+      // Check if cursor is still
+      if (this.xMove == 0 && this.yMove == 0) {
+        // Use mouse pressed only on first press:
+        if (this.prior_status == 1){
+          _mousePressed();
+        }
+      }
+      else{
+        if (this.prior_status == 1)
+          _mouseDragged();
+      }
+    }
+    //image(this.spriteSheet, 0, 0, hitbox, hitbox, 80, 80, 90, 80);
+    pop();
+    _mouseX = this.x;
+    _mouseY = this.y;
+    this.prior_status = this.status
+    
+  }
 }
 
 class Bug {
@@ -226,7 +311,7 @@ class Bug {
 
   squish_press() {
     if (!this.dead && !this.squished) {
-      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
         this.stop();
         this.squished = true;
       }
@@ -239,7 +324,7 @@ class Bug {
 
   squish_drag() {
     if (!this.dead && this.squished) {
-      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
         this.stop();
         this.squished = true;
       }
@@ -252,7 +337,7 @@ class Bug {
 
   kill() {
     if (!this.dead && this.squished) {
-      if (mouseX > this.x - hitbox/2-10 && mouseX < this.x + hitbox/2-10 && mouseY > this.y - hitbox/2-10 && mouseY < this.y + hitbox/2-10) {
+      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
         this.stop();
         this.dead = true;
         speed += 2;
@@ -266,9 +351,15 @@ class Bug {
         ))
         mainMelodyPart.playbackRate += 0.2;
         count += 1;
-        
-        sounds.player("squish").start(Tone.now(), 0.2);
-        sounds.player("skitter").start(Tone.now(), 0.5);
+        serialPDM.transmit("bug_kill");
+        try
+        {
+          sounds.player("squish").start(Tone.now(), 0.2);
+          sounds.player("skitter").start(Tone.now()+1, 0.5);
+        } catch(ex)
+        {
+          console.log("Minor Audio Error from simultaneous bug deaths.");
+        }
       }
     }
   }
