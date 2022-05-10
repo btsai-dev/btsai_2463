@@ -1,6 +1,6 @@
 /*
  * Programmer - Brian Tsai
- * Assignment - Controller
+ * Assignment - Final Project
  * Demo URL - https://youtu.be/U885wDuunWk
  */
 
@@ -8,11 +8,9 @@
 
 PDMSerial pdm;
 
-const int Click_pin = 2;
 const int X_pin = 0;
-const int Y_pin = 1;
-
-const int ledPin = 4;
+const int button_pin = 4;
+const int led_pin = 2;
 
 int scaledXmap;
 int scaledYmap;
@@ -23,31 +21,29 @@ int round10(int in) {
 }
 
 void setup() {
-  pinMode(Click_pin, INPUT);
-  pinMode(ledPin, OUTPUT);
-  digitalWrite(Click_pin, HIGH);
-  digitalWrite(ledPin, LOW);
+  Serial.begin(9600);
+  pinMode(led_pin, OUTPUT);
+  pinMode(button_pin, INPUT);
+  digitalWrite(led_pin, LOW);
   Serial.begin(9600);
 }
 
 void loop() {
-  int clickdata = digitalRead(Click_pin);
   int xData = analogRead(X_pin);
+  int buttonState = digitalRead(button_pin);
   scaledXmap = map(round10(map(xData, 0, 1023, 0, 100)), 0, 100, -100, 100);
-  int yData = analogRead(Y_pin);
-  scaledYmap = map(round10(map(yData, 0, 1023, 0, 100)), 0, 100, -100, 100);
 
-  pdm.transmitSensor("click", clickdata);
+  pdm.transmitSensor("buttonState", buttonState);
   pdm.transmitSensor("xData", scaledXmap);
-  pdm.transmitSensor("yData", scaledYmap);
   pdm.transmitSensor("end");
 
   boolean serialData = pdm.checkSerial();
   if (serialData) {
-    if (pdm.getName().equals(String("bug_kill"))) {
-      digitalWrite(ledPin, HIGH);
-      delay(10);
-      digitalWrite(ledPin, LOW);
+    if (pdm.getName().equals(String("new_game"))) {
+      digitalWrite(led_pin, LOW);
+    }
+    if (pdm.getName().equals(String("death"))) {
+      digitalWrite(led_pin, HIGH);
     }
   }
 }

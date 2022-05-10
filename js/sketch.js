@@ -1,361 +1,419 @@
 let serialPDM;
 let portName = "COM5";
 
-let serialPDM;
-let portName = "COM5";
+let canvas_WMAX = 1000;
+let canvas_HMAX = 500;
 
-let _cursor;
-let canvas_WMAX = 1200
-let canvas_HMAX = 600
+let score = 0;
 
-let melodyPlaybackRate = 1;
+/**
+ * game_status values:
+ * 0 - Game starter menu
+ * 1 - Game in progress
+ * 2 - Game ended
+ */
+let game_status = 0;
 
-const sounds = new Tone.Players({
-  'smack': 'media/smack.wav',
-  'squish': 'media/squish.wav',
-  'skitter': 'media/skitter.wav'
-})
+let missiles = [];
+let nukes = [];
 
-const mainChords = [
-  {time: 0, note: ["D4", "E4", "F4"]},
-  {time: "0:0.5", note: ["D4", "E4", "F4"]},
+// Spritesheets for missiles and AA
+let AA_spritesheet;
+let missile_spritesheet;
+let nuke_spritesheet;
+let explosion_spritesheet;
+
+let AA_truck;
+
+let shoot_frame = 0;
+let fire_time = 15;
+
+let drop_frame = 0;
+let drop_interval = 60;
+let min_droprate = 40
+
+// Increase rate every 10 seconds
+let rate_increase_frame = 0;
+let rate_delta = 5;
+let drop_rate_increase_interval = 300;
+
+let death_nuke_x;
+
+// Game Start Menu music:
+let startMenuMelody;
+let gameMenuMelody;
+let endMenuMelody;
+
+let vol = new Tone.Volume(9).toDestination();
+const startChords = [
+  {time: "0:0.5", note: ["D6", "E6", "F6"]},
   {time: "0:1", note: ["G4", "B4", "D4"]}, 
-  {time: "0:2", note: ["F4", "A4", "C4"]}, 
-  {time: "0:3", note: ["E4", "G3", "B4"]}, 
+  {time: "0:1.5", note: ["F6", "A6", "C6"]}, 
+  {time: "0:2", note: ["F6", "A6", "C6"]}, 
+  {time: "0:2.5", note: ["F6", "A6", "C6"]}, 
+  {time: "0:3", note: ["E6", "G6", "B6"]}, 
+  {time: "0:3.5", note: ["E6", "G6", "B6"]}, 
 ];
+
+const gameChords = [
+  {time: "0:0.5", note: ["C6", "E6", "G6"]},
+  {time: "0:1", note: ["F6", "Ab6", "C6"]}, 
+  {time: "0:1.5", note: ["Bb6", "D6", "F6"]}, 
+  {time: "0:2", note: ["C6", "E6", "G6"]},
+  {time: "0:2.5", note: ["C6", "E6", "G6"]},
+  {time: "0:3", note: ["F6", "Ab6", "C6"]}, 
+  {time: "0:3.5", note: ["Bb6", "D6", "F6"]}
+]
 
 const endChords = [
-  {time: 0, note: ["D2", "E2", "F2"]},
-  {time: "0:0.5", note: ["D2", "E2", "F2"]},
-  {time: "0:1", note: ["G2", "B2", "D2"]}, 
-  {time: "0:2", note: ["F2", "A2", "C2"]}, 
-  {time: "0:3", note: ["E2", "G1", "B2"]}, 
-];
+  {time: "0:0.5", note: ["C3", "E3", "G3"]},
+  {time: "0:1", note: ["F3", "Ab3", "C3"]}, 
+  {time: "0:1.5", note: ["Bb3", "D3", "F3"]}, 
+  {time: "0:2", note: ["C3", "E3", "G3"]},
+  {time: "0:2.5", note: ["C3", "E3", "G3"]},
+  {time: "0:3", note: ["F3", "Ab3", "C3"]}, 
+  {time: "0:3.5", note: ["Bb3", "D3", "F3"]}
+]
 
-let synthChord;
-let endChord;
-let chordInstrument;
-let endInstrument;
-let mainMelodyPart;
-let endMelodyPart;
+const player = new Tone.Player("media/launch.wav").toDestination();
 
-let _mouseX = 300;
-let _mouseY = 150;
 
 // Setup preloading and the music
 function preload() {
-  bug_spritesheet = loadImage("media/Bug.png");
+  AA_spritesheet = loadImage("media/antiair.png");
+  nuke_spritesheet = loadImage("media/nuke.png");
+  missile_spritesheet = loadImage("media/missile.png");
+  explosion_spritesheet = loadImage("media/nuclear.png");
 
-  // Setup music for general playing
   chordInstrument = new Tone.PolySynth(Tone.Synth)
   synthChord = {
-    volume: -3,
+    volume: -5,
     oscillator : {
-      type : "triangle"
+      type : "sine"
     }
   };
   chordInstrument.set(synthChord);
   chordInstrument.connect(Tone.Destination);
 
-  mainMelodyPart = new Tone.Part(
-    (time, chord) => {
-      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
-    }, mainChords);
-
-  mainMelodyPart.loop = true;
-  mainMelodyPart.playbackRate = melodyPlaybackRate;
-  mainMelodyPart.probability = 1;
-
-  mainMelodyPart.start();
-
-  // Setup music for end screen
-  endInstrument = new Tone.PolySynth(Tone.Synth);
-  endChord = {
-    volume: 20,
+  
+  chordInstrumentHi = new Tone.PolySynth(Tone.Synth)
+  synthChordHi = {
     oscillator : {
-      type : "sawtooth"
+      type : "sine"
     }
   };
-  endInstrument.set(endChord);
-  endInstrument.connect(Tone.Destination);
+  chordInstrumentHi.set(synthChordHi);
+  chordInstrumentHi.connect(Tone.Destination);
 
-  endMelodyPart = new Tone.Part(
+  startMenuMelody = new Tone.Part(
     (time, chord) => {
       chordInstrument.triggerAttackRelease(chord.note, "8n", time);
-    }, endChords);
+    }, startChords
+  );
+  startMenuMelody.loop = true;
+  startMenuMelody.playbackRate = 1;
+  startMenuMelody.probability = 1;
 
-  endMelodyPart.loop = true;
-  endMelodyPart.playbackRate = 2;
-  endMelodyPart.probability = 1;
+  gameMenuMelody = new Tone.Part(
+    (time, chord) => {
+      chordInstrument.triggerAttackRelease(chord.note, "8n", time);
+    }, gameChords
+  );
+  gameMenuMelody.loop = true;
+  gameMenuMelody.playbackRate = 1;
+  gameMenuMelody.probability = 1;
 
-  // Start up everything
+  endMenuMelody = new Tone.Part(
+    (time, chord) => {
+      chordInstrumentHi.connect(vol);
+      chordInstrumentHi.triggerAttackRelease(chord.note, "8n", time);
+    }, endChords
+  );
+  endMenuMelody.loop = true;
+  endMenuMelody.playbackRate = 1;
+  endMenuMelody.probability = 1;
+
+
   Tone.start();
   Tone.Transport.start();
-}
-
-// Check for kills on release
-function _mouseReleased() {
-  for (i = 0; i < count; i++) {
-    bugs[i].kill();
-  }
-}
-
-// Check for squishes on press
-function _mousePressed() {
-  for (i = 0; i < count; i++) {
-    bugs[i].squish_press();
-  }
-  sounds.player("smack").start();
-}
-
-// Check for any dragging
-function _mouseDragged() {
-  for (i = 0; i < count; i++) {
-    bugs[i].squish_drag();
-  }
 }
 
 function setup() {
   serialPDM = new PDMSerial(portName);
   sensor = serialPDM.sensorData;
-
+  frameRate(60);
   createCanvas(canvas_WMAX, canvas_HMAX);
   imageMode(CENTER);
 
-  sounds.connect(Tone.Destination);
+  // Instantiate the AA defense truck
+  AA_truck = new AA(
+    canvas_WMAX/2,
+    canvas_HMAX-70/2
+  );
 
-  _cursor = new MouseCursor(
-    null,
-    300,
-    150
-  )
-
-  for (i=0; i<count; i++) {
-    bugs[i] = new Bug(
-      bug_spritesheet, 
-      random(100, 1100), 
-      random(100, 500), 
-      random([-1, 1])
-    )
+  // Start up the start menu melody
+  if(game_status==0){   
+    startMenuMelody.start();
+    serialPDM.transmit("new_game");
   }
 }
 
 function draw() {
+  // Draw the background
   background(200, 200, 200);
-  if (!game_ended) {
-    // Process arduino info only if game is playing
-    click_data = sensor.click;
-    x_data = sensor.xData;
-    y_data = sensor.yData;
-    _cursor.xMove = sensor.xData;
-    _cursor.yMove = sensor.yData;
-    _cursor.status = sensor.click;
-    fill('black');
-    textAlign(CENTER, CENTER);
-    textSize(32);
-    text("Time left: " + time, width/2, 50);
-    text("Score: " + score, width/2, height-50);
-    for (i=0; i<count; i++) {
-      bugs[i].draw();
-    }
-    _cursor.draw();
-    if (frameCount % 60 == 0 && time > 0)
-    {
-      time --;
-    }
-    if (time == 0){
-      game_ended = true;
 
-      // This will be executed only once
-      mainMelodyPart.stop();
-      endMelodyPart.start();
-      sounds.disconnect();
+  buttonState = sensor.buttonState;
+  x_data = sensor.xData;
+
+  if (game_status == 0) {
+    textSize(50);
+    stroke(255, 204, 0);
+    strokeWeight(4);
+    textAlign(CENTER);
+
+    text(
+      "The bombs are falling!\nShoot down as many as you can!\nPress FIRE to start.",
+      canvas_WMAX/2,
+      canvas_HMAX/2
+    )
+    if(buttonState == 1){
+      game_status = 1;
+      startMenuMelody.stop();
+      gameMenuMelody.start();
     }
   }
+  else if (game_status == 1) {
     
-  else {
-    fill('black');
-    rect(width/2-300, height/2-200, 600, 400);
-    fill('white');
-    textAlign(CENTER, CENTER);
-    textSize(32);
-    text("Game Over! Total score: " + score, width/2, height/2)
-  }
+  // Check inputs
+    if(x_data < 0){
+      AA_truck.go(-2);
+    } else if(x_data > 0){
+      AA_truck.go(2);
+    }
+    else{
+      AA_truck.go(0);
+    }
+    if(buttonState == 1){
+      AA_truck.shoot();
+    }
 
-}
-
-class MouseCursor {
-  constructor(spriteSheet, x, y) {
-    this.spriteSheet = spriteSheet;
-    this.x = int(x);
-    this.y = int(y);
-    this.xMove = 0;
-    this.yMove = 0;
-    this.speed = 5;
-    this.status = 1;  // If status = 1, then not pressed. 0 if pressed.
-    this.prior_status = 1;  // Prior status, check if release
-  }
-
-  draw() {
-    push();
-    //translate(this.x, this.y);
-    circle(this.x, this.y, 10);
-    // If mouse is unpressed and you're justing moving
-    if (this.status == 1)
-    {
-      // Check if prior status was pressed
-      if (this.prior_status == 0)
-      {
-        // Execute a release
-        _mouseReleased();
-      }
-      else{
-        let futureX = this.x + int(this.xMove / 20 * 1);
-        let futureY = this.y + int(this.yMove / 20 * 1)
-        // make sure not out of bounds
-        if (futureX >= 0 && futureX <= width)
-          this.x = futureX;
-        if (futureY >= 0 && futureY <= height)
-          this.y = futureY
+    // Check rate
+    if (frameCount - rate_increase_frame > drop_rate_increase_interval){
+      rate_increase_frame = frameCount;
+      drop_interval -= rate_delta;
+      if (drop_interval < min_droprate){
+        drop_interval = min_droprate;
       }
     }
-    // Check if mouse is pressed
-    else if (this.status == 0) {
-      // Check if cursor is still
-      if (this.xMove == 0 && this.yMove == 0) {
-        // Use mouse pressed only on first press:
-        if (this.prior_status == 1){
-          _mousePressed();
+    // Compute whether to make new bomb
+    if (frameCount - drop_frame > drop_interval){
+      drop_frame = frameCount;
+      nukes.push(new Nuke(
+        random(100, canvas_WMAX-100),
+        -50
+      ))
+    }
+    // Draw the AA truck
+    AA_truck.draw();
+
+    // Draw all missiles
+    for(let i=missiles.length-1; i>=0; i--){
+      if(missiles[i].draw()){
+        missiles.splice(i, 1);
+      }
+    }
+
+    // Draw all bombs
+    for (let i=nukes.length-1; i>=0;i--){
+      if(nukes[i].draw()){
+        // Nuke hit the ground. Kaboom!
+        death_nuke_x = nukes[i].x;
+        nukes.splice(i, 1);
+        game_status=2;
+        console.log("Done.");
+        serialPDM.transmit("death");
+        
+        gameMenuMelody.stop();
+        endMenuMelody.start();
+        return;
+      }
+    }
+
+    // Check for missile + bomb collisions:
+    for(let i=missiles.length-1; i>=0; i--){
+      let missile = missiles[i];
+      for(let j=nukes.length-1; j>=0; j--){
+        let nuke = nukes[j];
+        // Check if missile tip is at correct width position
+        if(missile.x < nuke.x+nuke.hitwidth/4 && missile.x > nuke.x-nuke.hitwidth/4){
+          // Check if missile tip is at correct height position
+          if(missile.y-missile.hitheight/2 < nuke.y+nuke.hitheight/4){
+            missiles.splice(i, 1);
+            nukes.splice(j, 1);
+            score++;
+          }
         }
       }
-      else{
-        if (this.prior_status == 1)
-          _mouseDragged();
-      }
     }
-    //image(this.spriteSheet, 0, 0, hitbox, hitbox, 80, 80, 90, 80);
-    pop();
-    _mouseX = this.x;
-    _mouseY = this.y;
-    this.prior_status = this.status
+  }
+  else{
+    // Display frozen, and end screen
+
+    // Draw the AA truck
+    AA_truck.aaspeed = 0;
+    AA_truck.draw();
+
+    // Draw all bombs
+    for (let i=nukes.length-1; i>=0;i--){
+      nukes[i].nukespeed = 0;
+      nukes[i].draw();
+    }
+
+    // Draw all missiles
+    for (let i=missiles.length-1; i>=0;i--){
+      missiles[i].travelspeed = 0;
+      missiles[i].draw();
+    }
+
+    // Draw an explosion
+    image(
+      explosion_spritesheet,
+      death_nuke_x,
+      canvas_HMAX-150
+    )
     
+    textSize(100);
+    stroke(255, 204, 0);
+    strokeWeight(4);
+    textAlign(CENTER);
+    text(
+      "GAME OVER\nSCORE: " + score,
+      canvas_WMAX/2,
+      canvas_HMAX/2
+    )
   }
 }
 
-class Bug {
-  constructor(spriteSheet, x, y, move) {
-    this.spriteSheet = spriteSheet;
-    this.sx = 0;
-    this.x = int(x);
-    this.y = int(y);
-    this.move = move;
-    this.face_dir = move;
-    this.dead = false;
-    this.squished = false;
-    this.viewable = true;
-    this.timeOfDeath = 0;
+class AA {
+  constructor(horizontal_pos, vertical_pos) {
+    this.hitwidth = 100;
+    this.hitheight = 70;
+
+    this.aaspeed = 3;
+    this.move = 0;
+
+    this.x = horizontal_pos;
+    this.y = vertical_pos;
   }
 
-  draw() {
+  draw(){
     push();
     translate(this.x, this.y);
-    scale (this.face_dir, 1);
+    scale(1, 1);
+    image(
+      AA_spritesheet, 
+      0,
+      0,
+      this.hitwidth, 
+      this.hitheight,
+      0,
+      0
+    );
     
-    if (this.dead) {
-      if (this.viewable) {
-        image(this.spriteSheet, 0, 0, hitbox, hitbox, 80, 80, 90, 80);
-      }
-      if (frameCount - this.timeOfDeath > 60){
-        this.viewable = false;
-      }
-    }
-    else if (this.squished) {
-      image(this.spriteSheet, 0, 0, hitbox, hitbox, 0, 80, 80, 80);
-    }
-    else {
-      image(this.spriteSheet, 0, 0, hitbox, hitbox, 80 * (this.sx + 1), 0, 80, 80);
-    }
-    if (frameCount % 8 == 0) {
-      this.sx = (this.sx + 1) % 6;
-    }
-    this.x += speed * this.move;
-
-    if (!this.squished && !this.dead)
-    {
-      if (this.x < hitbox/2-10) {
-        this.move = 1;
-        this.face_dir = 1;
-      }
-      else if (this.x > width-hitbox/2+10) {
-        this.move = -1;
-        this.face_dir = -1;
-      }
-    }
+    // If going to the left, check if hitting wall before moving
+    let next_move = this.x + this.aaspeed * this.move;
+    if(next_move > 0 && next_move < canvas_WMAX)
+      this.x = next_move;
     pop();
   }
 
-  go(direction) {
+  go(direction){
     this.move = direction;
-    this.face_dir = direction;
-    this.sx = 3;
   }
 
-  stop() {
-    this.move = 0;
-  }
-
-  squish_press() {
-    if (!this.dead && !this.squished) {
-      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
-        this.stop();
-        this.squished = true;
-      }
-      else{
-        this.go(this.face_dir);
-        this.squished = false;
-      }
+  shoot(){
+    if(frameCount - shoot_frame > fire_time){
+      shoot_frame = frameCount;
+      player.start();
+      missiles.push(new Missile(
+        this.x,
+        this.y-this.hitheight/2
+      ))
     }
   }
+}
 
-  squish_drag() {
-    if (!this.dead && this.squished) {
-      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
-        this.stop();
-        this.squished = true;
-      }
-      else{
-        this.go(this.face_dir);
-        this.squished = false;
-      }
-    }
+class Nuke {
+  constructor(horizontal_pos, vertical_pos) {
+    this.hitwidth = 100;
+    this.hitheight = 100;
+
+    this.nukespeed = 2;
+
+    this.x = horizontal_pos;
+    this.y = vertical_pos;
   }
 
-  kill() {
-    if (!this.dead && this.squished) {
-      if (_mouseX > this.x - hitbox/2-10 && _mouseX < this.x + hitbox/2-10 && _mouseY > this.y - hitbox/2-10 && _mouseY < this.y + hitbox/2-10) {
-        this.stop();
-        this.dead = true;
-        speed += 2;
-        score += 1;
-        this.timeOfDeath = frameCount;
-        bugs.push(new Bug(
-          bug_spritesheet, 
-          random(100, 1100), 
-          random(100, 500), 
-          random([-1, 1])
-        ))
-        mainMelodyPart.playbackRate += 0.2;
-        count += 1;
-        serialPDM.transmit("bug_kill");
-        try
-        {
-          sounds.player("squish").start(Tone.now(), 0.2);
-          sounds.player("skitter").start(Tone.now()+1, 0.5);
-        } catch(ex)
-        {
-          console.log("Minor Audio Error from simultaneous bug deaths.");
-        }
-      }
+  draw(){
+    push();
+    translate(this.x, this.y);
+    scale(1, 1);
+    image(
+      nuke_spritesheet, 
+      0,
+      0,
+      this.hitwidth, 
+      this.hitheight,
+      0,
+      0
+    );
+    
+    // Send nuke down
+    this.y += this.nukespeed
+    pop();
+    
+    
+    // return true to detonate explosion
+    if (this.y > canvas_HMAX){
+      return true;
     }
+    return false;
+  }
+}
+
+class Missile {
+  constructor(horizontal_pos, vertical_pos) {
+    this.hitwidth = 30;
+    this.hitheight = 40;
+
+    this.x = horizontal_pos;
+    this.y = vertical_pos;
+
+    this.travelspeed = 10;
+  }
+
+  draw(){
+    push();
+    translate(this.x, this.y);
+    scale(1, 1);
+    image(
+      missile_spritesheet, 
+      0,
+      0,
+      this.hitwidth, 
+      this.hitheight,
+      0,
+      0
+    );
+    
+    // Send missile up
+    this.y -= this.travelspeed
+    pop();
+    
+    // return true to remove from list if out of frame
+    if (this.y + this.hitheight < 0){
+      return true;
+    }
+    return false;
   }
 }
